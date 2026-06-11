@@ -155,6 +155,17 @@ void print_clearing(Clearing *clearing) {
     printf("\n");
 }
 
+Clearing *get_clearing(char *clearing_name, Clearing *clearings[]) {
+    for (int i = 0; i < 12; i++) {
+        Clearing *curr_clearing = clearings[i];
+        if (strcmp(curr_clearing->name, clearing_name) == 0) {
+            return curr_clearing;
+        }
+    }
+
+    return NULL;
+}
+
 
 int main(void) {
     // Create each clearing.
@@ -280,7 +291,43 @@ int main(void) {
                           forest_6, forest_7};
 
 
-    print_clearing(rabbit_1);
+    // Game loop:
+    bool is_playing = true;
+    while (is_playing) {
+        printf("Enter next command: ");
+
+        char command_buf[128];
+        fgets(command_buf, sizeof(command_buf), stdin);
+        command_buf[strcspn(command_buf, "\n")] = '\0';
+
+        char *command = strtok(command_buf, " ");
+        char *arg = strtok(NULL, " ");
+
+        if (strcmp(command, "quit") == 0) {
+            is_playing = false;
+        }
+        else if (strcmp(command, "inspect") == 0) {
+            Clearing *clearing = get_clearing(arg, clearings);
+            if (clearing != NULL) {
+                print_clearing(clearing);
+            }
+            else {
+                printf("Clearing '%s' does not exist!\n", arg);
+            }
+
+            printf("\n");
+        }
+        else if (strcmp(command, "help") == 0) {
+            printf("\tquit -> quit the game\n\tinspect [clearing] -> show info about that clearing\n");
+            printf("\n");
+        }
+        else {
+            printf("Invalid command! Type 'help' for help\n");
+            printf("\n");
+        }
+    }
+    printf("Shutting down!\n");
+
     return 0;
 }
 
