@@ -13,7 +13,7 @@ typedef enum {
 } Suit;
 
 typedef enum {
-    NONE,
+    NO_FACTION,
     MARQUISE,
     EYRIE,
     ALLIANCE,
@@ -25,9 +25,17 @@ typedef struct {
     char *name;
 } Item;
 
-typedef struct {
-    char *name;
-    Item item;
+typedef enum {
+    NO_SLOT,
+    EMPTY,
+    RUIN,
+    SAWMILL,
+    RECRUITER,
+    WORKSHOP,
+    ROOST,
+    BASE_FOX,
+    BASE_RABBIT,
+    BASE_MOUSE
 } Building;
 
 typedef struct {
@@ -72,24 +80,21 @@ Clearing *create_clearing(char *name, Suit suit, int num_slots, bool has_ruin,
 
     clearing->name = name;
     clearing->suit = suit;
-    clearing->ruler = NONE;
+    clearing->ruler = NO_FACTION;
 
     clearing->is_corner = is_corner;
 
     // Fill out building slots.
     assert((num_slots > 0) && (num_slots <= 3));
     for (int i = 2; i > (num_slots - 1); i--) {
-        Building null_slot = {"NULL_SLOT", {"NO_ITEM"}};
-        clearing->slots[i] = null_slot;
+        clearing->slots[i] = NO_SLOT;
     }
     for (int i = 0; i < num_slots; i++) {
-        Building empty_slot = {"Empty", {"NO_ITEM"}};
-        clearing->slots[i] = empty_slot;
+        clearing->slots[i] = EMPTY;
     }
 
     if (has_ruin) {
-        Building ruin = {"Ruin", {"PLACEHOLDER_ITEM"}}; 
-        clearing->slots[0] = ruin;
+        clearing->slots[0] = RUIN;
     }
 
     return clearing;
@@ -121,7 +126,7 @@ void print_clearing(Clearing *clearing) {
 
     char *suit_str = NULL;
     char *ruler_str = NULL;
-    switch(clearing->suit) {
+    switch (clearing->suit) {
         case FOX:
             suit_str = "Fox";
             break;
@@ -131,7 +136,10 @@ void print_clearing(Clearing *clearing) {
         case MOUSE:
             suit_str = "Mouse";
     }
-    switch(clearing->ruler) {
+    switch (clearing->ruler) {
+        case NO_FACTION:
+            ruler_str = "None";
+            break;
         case MARQUISE:
             ruler_str = "Marquise de Cat";
             break;
@@ -142,14 +150,45 @@ void print_clearing(Clearing *clearing) {
             ruler_str = "Woodland Alliance";
             break;
         default:
-            ruler_str = "None";
+            ruler_str = "ERROR! IMPROPER ENUM!";
     }
     printf("\tSuit: %s | Ruler: %s\n", suit_str, ruler_str);
 
     printf("\tBuilding Slots: ");
     for (int i = 0; i < 3; i++) {
-        if (strcmp((clearing->slots[i]).name, "NULL_SLOT") != 0) {
-            printf("%s ", (clearing->slots[i]).name);
+        if (clearing->slots[i] != NO_SLOT) {
+            switch (clearing->slots[i]) {
+                case EMPTY:
+                    printf("Empty");
+                    break;
+                case RUIN:
+                    printf("Ruin");
+                    break;
+                case SAWMILL:
+                    printf("Sawmill");
+                    break;
+                case RECRUITER:
+                    printf("Recruiter");
+                    break;
+                case WORKSHOP:
+                    printf("Workshop");
+                    break;
+                case ROOST:
+                    printf("Roost");
+                    break;
+                case BASE_FOX:
+                    printf("Fox Base");
+                    break;
+                case BASE_RABBIT:
+                    printf("Rabbit Base");
+                    break;
+                case BASE_MOUSE:
+                    printf("Mouse Base");
+                    break;
+                default:
+                    printf("ERROR! IMPROPER ENUM!");
+            }
+            printf(" ");
         }
     }
     printf("\n");
@@ -165,6 +204,27 @@ Clearing *get_clearing(char *clearing_name, Clearing *clearings[]) {
 
     return NULL;
 }
+
+/*void setup_marquise(Clearing *clearings[]) {
+    printf("Welcome, Marquise de Cat!\n");
+
+    bool is_placing_keep = true;
+    while (is_placing_keep) {
+        printf("Where shall you place your keep? ");
+
+        char keep_clearing[16];
+        fgets(keep_clearing, sizeof(keep_clearing), stdin);
+        command_buf[strcspn(command_buf, "\n")] = '\0';
+
+        Clearing *chosen_clearing = get_clearing(keep_clearing, clearings);
+        if (chosen_clearing.is_corner != true) {
+            printf("Clearing %s is not a corner clearing! Please choose a corner.\n", keep_clearing);
+            continue;
+        }
+
+        Building the_keep = {};
+    }
+}*/
 
 
 int main(void) {
@@ -303,9 +363,11 @@ int main(void) {
         char *command = strtok(command_buf, " ");
         char *arg = strtok(NULL, " ");
 
+        // Quit
         if (strcmp(command, "quit") == 0) {
             is_playing = false;
         }
+        // Inspect
         else if (strcmp(command, "inspect") == 0) {
             Clearing *clearing = get_clearing(arg, clearings);
             if (clearing != NULL) {
@@ -314,13 +376,14 @@ int main(void) {
             else {
                 printf("Clearing '%s' does not exist!\n", arg);
             }
-
             printf("\n");
         }
+        // Help
         else if (strcmp(command, "help") == 0) {
             printf("\tquit -> quit the game\n\tinspect [clearing] -> show info about that clearing\n");
             printf("\n");
         }
+        // Default response
         else {
             printf("Invalid command! Type 'help' for help\n");
             printf("\n");
