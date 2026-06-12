@@ -20,7 +20,6 @@ typedef enum {
     VAGABOND
 } Faction;
 
-
 typedef struct {
     char *name;
 } Item;
@@ -36,17 +35,31 @@ typedef enum {
     BASE_FOX,
     BASE_RABBIT,
     BASE_MOUSE
-} Building;
+} BuildingType;
 
-/*typedef struct {
+typedef struct {
     char *name;
-} Token;*/
+    BuildingType type;
+    Faction faction;
+
+    bool is_crafter;
+    bool has_crafted_this_turn;
+} Building;
 
 typedef enum {
     NO_TOKEN,
     KEEP,
     WOOD,
     SYMPATHY
+} TokenType;
+
+typedef struct {
+    char *name;
+    TokenType type;
+    Faction faction;
+
+    bool is_crafter;
+    bool has_crafted_this_turn;
 } Token;
 
 typedef struct {
@@ -81,8 +94,36 @@ typedef struct {
 } Forest;
 
 
+Building create_building(char *name, BuildingType type, Faction faction,
+                         bool is_crafter) {
+    Building new_building = {0};
+
+    new_building.name = name;
+    new_building.type = type;
+    new_building.faction = faction;
+
+    new_building.is_crafter = is_crafter;
+    new_building.has_crafted_this_turn = false;
+
+    return new_building;
+}
+
+Token create_token(char *name, TokenType type, Faction faction,
+                         bool is_crafter) {
+    Token new_token = {0};
+
+    new_token.name = name;
+    new_token.type = type;
+    new_token.faction = faction;
+
+    new_token.is_crafter = is_crafter;
+    new_token.has_crafted_this_turn = false;
+
+    return new_token;
+}
+
 Clearing *create_clearing(char *name, Suit suit, int num_slots, bool has_ruin,
-                          bool is_corner) {
+                          bool is_corner, Building buildings[], Token tokens[]) {
     Clearing *clearing = malloc(sizeof(Clearing));
 
     clearing->name = name;
@@ -94,18 +135,18 @@ Clearing *create_clearing(char *name, Suit suit, int num_slots, bool has_ruin,
     // Fill out building slots.
     assert((num_slots > 0) && (num_slots <= 3));
     for (int i = 2; i > (num_slots - 1); i--) {
-        clearing->slots[i] = NO_SLOT;
+        clearing->slots[i] = buildings[NO_SLOT];
     }
     for (int i = 0; i < num_slots; i++) {
-        clearing->slots[i] = EMPTY;
+        clearing->slots[i] = buildings[EMPTY];
     }
     if (has_ruin) {
-        clearing->slots[0] = RUIN;
+        clearing->slots[0] = buildings[RUIN];
     }
 
     // Set clearing to be empty of tokens.
     for (int i = 0; i < 16; i++) {
-        clearing->tokens[i] = NO_TOKEN;
+        clearing->tokens[i] = tokens[NO_TOKEN];
     }
 
     // Set clearing to be empty of warriors. 'NO_FACTION' warriors don't exist.
@@ -120,6 +161,10 @@ Forest *create_forest(char *name) {
     Forest *forest = malloc(sizeof(Forest));
 
     forest->name = name;
+
+    for (int i = 0; i < 8; i++) {
+        forest->warriors[i].faction = NO_FACTION;
+    }
 
     return forest;
 }
@@ -172,38 +217,8 @@ void print_clearing(Clearing *clearing) {
 
     printf("\tBuilding Slots: ");
     for (int i = 0; i < 3; i++) {
-        if (clearing->slots[i] != NO_SLOT) {
-            switch (clearing->slots[i]) {
-                case EMPTY:
-                    printf("Empty ");
-                    break;
-                case RUIN:
-                    printf("Ruin ");
-                    break;
-                case SAWMILL:
-                    printf("Sawmill ");
-                    break;
-                case RECRUITER:
-                    printf("Recruiter ");
-                    break;
-                case WORKSHOP:
-                    printf("Workshop ");
-                    break;
-                case ROOST:
-                    printf("Roost ");
-                    break;
-                case BASE_FOX:
-                    printf("Fox Base ");
-                    break;
-                case BASE_RABBIT:
-                    printf("Rabbit Base ");
-                    break;
-                case BASE_MOUSE:
-                    printf("Mouse Base ");
-                    break;
-                default:
-                    printf("ERROR! IMPROPER ENUM! ");
-            }
+        if (clearing->slots[i].type != NO_SLOT) {
+            printf("%s ", clearing->slots[i].name);
         }
     }
     printf("\n");
@@ -211,20 +226,8 @@ void print_clearing(Clearing *clearing) {
     printf("\tTokens: ");
     bool has_any_tokens = false;
     for (int i = 0; i < 16; i++) {
-        if (clearing->tokens[i] != NO_TOKEN) {
-            switch (clearing->tokens[i]) {
-                case KEEP:
-                    printf("Keep ");
-                    break;
-                case WOOD:
-                    printf("Wood ");
-                    break;
-                case SYMPATHY:
-                    printf("Sympathy ");
-                    break;
-                default:
-                    printf("ERROR! IMPROPER ENUM! ");
-            }
+        if (clearing->tokens[i].type != NO_TOKEN) {
+            printf("%s ", clearing->tokens[i].name);
             has_any_tokens = true;
         }
     }
@@ -270,11 +273,12 @@ Clearing *get_clearing(char *clearing_name, Clearing *clearings[]) {
     return NULL;
 }
 
-void setup_marquise(Clearing *clearings[]) {
+void setup_marquise(Clearing *clearings[], Token tokens[]) {
     printf("Welcome, Marquise de Cat!\n");
  
     Clearing *keep_clearing = NULL;
 
+    // Place keep token.
     bool is_placing_keep = true;
     while (is_placing_keep) {
         printf("Where shall you place your keep? ");
@@ -289,15 +293,12 @@ void setup_marquise(Clearing *clearings[]) {
             continue;
         }
 
-        keep_clearing->tokens[0] = KEEP;
+        keep_clearing->tokens[0] = tokens[KEEP];
         is_placing_keep = false;
     }
 
+    // Place initial warriors.
     Warrior marquise_warrior = {MARQUISE};
-    if (keep_clearing->opposite_corner == NULL) {
-        printf("Keep clearing opposite corner null!\n");
-    }
-
     for (int i = 0; i < 12; i++) {
         Clearing *curr_clearing = clearings[i];
 
@@ -309,19 +310,43 @@ void setup_marquise(Clearing *clearings[]) {
 
 
 int main(void) {
+    // Create buildings.
+    Building no_slot = create_building("NO_SLOT", NO_SLOT, NO_FACTION, false);
+    Building empty = create_building("Empty", EMPTY, NO_FACTION, false);
+    Building ruin = create_building("Ruin", RUIN, NO_FACTION, false);
+    Building sawmill = create_building("Sawmill", SAWMILL, MARQUISE, false);
+    Building recruiter = create_building("Recruiter", RECRUITER, MARQUISE, false);
+    Building workshop = create_building("Workshop", WORKSHOP, MARQUISE, true);
+    Building roost = create_building("Roost", ROOST, EYRIE, true);
+    Building base_fox = create_building("Fox Base", BASE_FOX, ALLIANCE, false);
+    Building base_rabbit = create_building("Rabbit Base", BASE_RABBIT, ALLIANCE, false);
+    Building base_mouse = create_building("Mouse Base", BASE_MOUSE, ALLIANCE, false);
+
+    // Create tokens.
+    Token no_token = create_token("NO_TOKEN", NO_TOKEN, NO_FACTION, false);
+    Token keep = create_token("Keep", KEEP, MARQUISE, false);
+    Token wood = create_token("Wood", WOOD, MARQUISE, false);
+    Token sympathy = create_token("Sympathy", SYMPATHY, ALLIANCE, true);
+
+    // Final lists of buildings/tokens.
+    Building buildings[] = {no_slot, empty, ruin, sawmill, recruiter, workshop,
+                            roost, base_fox, base_rabbit, base_mouse};
+    Token tokens[] = {no_token, keep, wood, sympathy};
+
+
     // Create each clearing.
-    Clearing *fox_1 = create_clearing("F1", FOX, 1, false, true);
-    Clearing *rabbit_1 = create_clearing("R1", RABBIT, 2, false, false);
-    Clearing *mouse_1 = create_clearing("M1", MOUSE, 2, false, true);
-    Clearing *mouse_2 = create_clearing("M2", MOUSE, 2, false, false);
-    Clearing *rabbit_2 = create_clearing("R2", RABBIT, 2, true, false);
-    Clearing *fox_2 = create_clearing("F2", FOX, 2, true, false);
-    Clearing *mouse_3 = create_clearing("M3", MOUSE, 3, true, false);
-    Clearing *fox_3 = create_clearing("F3", FOX, 2, true, false);
-    Clearing *rabbit_3 = create_clearing("R3", RABBIT, 1, false, true);
-    Clearing *fox_4 = create_clearing("F4", FOX, 2, false, false);
-    Clearing *mouse_4 = create_clearing("M4", MOUSE, 2, false, false);
-    Clearing *rabbit_4 = create_clearing("R4", RABBIT, 1, false, true);
+    Clearing *fox_1 = create_clearing("F1", FOX, 1, false, true, buildings, tokens);
+    Clearing *rabbit_1 = create_clearing("R1", RABBIT, 2, false, false, buildings, tokens);
+    Clearing *mouse_1 = create_clearing("M1", MOUSE, 2, false, true, buildings, tokens);
+    Clearing *mouse_2 = create_clearing("M2", MOUSE, 2, false, false, buildings, tokens);
+    Clearing *rabbit_2 = create_clearing("R2", RABBIT, 2, true, false, buildings, tokens);
+    Clearing *fox_2 = create_clearing("F2", FOX, 2, true, false, buildings, tokens);
+    Clearing *mouse_3 = create_clearing("M3", MOUSE, 3, true, false, buildings, tokens);
+    Clearing *fox_3 = create_clearing("F3", FOX, 2, true, false, buildings, tokens);
+    Clearing *rabbit_3 = create_clearing("R3", RABBIT, 1, false, true, buildings, tokens);
+    Clearing *fox_4 = create_clearing("F4", FOX, 2, false, false, buildings, tokens);
+    Clearing *mouse_4 = create_clearing("M4", MOUSE, 2, false, false, buildings, tokens);
+    Clearing *rabbit_4 = create_clearing("R4", RABBIT, 1, false, true, buildings, tokens);
 
     // Set opposite corners.
     fox_1->opposite_corner = rabbit_4;
@@ -437,7 +462,7 @@ int main(void) {
     Forest *forests[7] = {forest_1, forest_2, forest_3, forest_4, forest_5,
                           forest_6, forest_7};
 
-    setup_marquise(clearings);
+    setup_marquise(clearings, tokens);
 
     // Game loop:
     bool is_playing = true;
