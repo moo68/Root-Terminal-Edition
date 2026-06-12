@@ -38,8 +38,15 @@ typedef enum {
     BASE_MOUSE
 } Building;
 
-typedef struct {
+/*typedef struct {
     char *name;
+} Token;*/
+
+typedef enum {
+    NO_TOKEN,
+    KEEP,
+    WOOD,
+    SYMPATHY
 } Token;
 
 typedef struct {
@@ -47,7 +54,7 @@ typedef struct {
 } Warrior;
 
 
-typedef struct {
+typedef struct Clearing {
     char *name;
     Suit suit;
     Faction ruler;
@@ -92,9 +99,18 @@ Clearing *create_clearing(char *name, Suit suit, int num_slots, bool has_ruin,
     for (int i = 0; i < num_slots; i++) {
         clearing->slots[i] = EMPTY;
     }
-
     if (has_ruin) {
         clearing->slots[0] = RUIN;
+    }
+
+    // Set clearing to be empty of tokens.
+    for (int i = 0; i < 16; i++) {
+        clearing->tokens[i] = NO_TOKEN;
+    }
+
+    // Set clearing to be empty of warriors. 'NO_FACTION' warriors don't exist.
+    for (int i = 0; i < 32; i++) {
+        clearing->warriors[i].faction = NO_FACTION;
     }
 
     return clearing;
@@ -159,37 +175,86 @@ void print_clearing(Clearing *clearing) {
         if (clearing->slots[i] != NO_SLOT) {
             switch (clearing->slots[i]) {
                 case EMPTY:
-                    printf("Empty");
+                    printf("Empty ");
                     break;
                 case RUIN:
-                    printf("Ruin");
+                    printf("Ruin ");
                     break;
                 case SAWMILL:
-                    printf("Sawmill");
+                    printf("Sawmill ");
                     break;
                 case RECRUITER:
-                    printf("Recruiter");
+                    printf("Recruiter ");
                     break;
                 case WORKSHOP:
-                    printf("Workshop");
+                    printf("Workshop ");
                     break;
                 case ROOST:
-                    printf("Roost");
+                    printf("Roost ");
                     break;
                 case BASE_FOX:
-                    printf("Fox Base");
+                    printf("Fox Base ");
                     break;
                 case BASE_RABBIT:
-                    printf("Rabbit Base");
+                    printf("Rabbit Base ");
                     break;
                 case BASE_MOUSE:
-                    printf("Mouse Base");
+                    printf("Mouse Base ");
                     break;
                 default:
-                    printf("ERROR! IMPROPER ENUM!");
+                    printf("ERROR! IMPROPER ENUM! ");
             }
-            printf(" ");
         }
+    }
+    printf("\n");
+
+    printf("\tTokens: ");
+    bool has_any_tokens = false;
+    for (int i = 0; i < 16; i++) {
+        if (clearing->tokens[i] != NO_TOKEN) {
+            switch (clearing->tokens[i]) {
+                case KEEP:
+                    printf("Keep ");
+                    break;
+                case WOOD:
+                    printf("Wood ");
+                    break;
+                case SYMPATHY:
+                    printf("Sympathy ");
+                    break;
+                default:
+                    printf("ERROR! IMPROPER ENUM! ");
+            }
+            has_any_tokens = true;
+        }
+    }
+    if (has_any_tokens == false) {
+        printf("None");
+    }
+    printf("\n");
+
+    printf("\tWarriors: ");
+    bool has_any_warriors = false;
+    for (int i = 0; i < 32; i++) {
+        if (clearing->warriors[i].faction != NO_FACTION) {
+            switch (clearing->warriors[i].faction) {
+                case MARQUISE:
+                    printf("Marquise ");
+                    break;
+                case EYRIE:
+                    printf("Eyrie ");
+                    break;
+                case ALLIANCE:
+                    printf("Alliance ");
+                    break;
+                default:
+                    printf("ERROR! IMPROPER ENUM! ");
+            }
+            has_any_warriors = true;
+        }
+    }
+    if (has_any_warriors == false) {
+        printf("None");
     }
     printf("\n");
 }
@@ -205,26 +270,42 @@ Clearing *get_clearing(char *clearing_name, Clearing *clearings[]) {
     return NULL;
 }
 
-/*void setup_marquise(Clearing *clearings[]) {
+void setup_marquise(Clearing *clearings[]) {
     printf("Welcome, Marquise de Cat!\n");
+ 
+    Clearing *keep_clearing = NULL;
 
     bool is_placing_keep = true;
     while (is_placing_keep) {
         printf("Where shall you place your keep? ");
 
-        char keep_clearing[16];
-        fgets(keep_clearing, sizeof(keep_clearing), stdin);
-        command_buf[strcspn(command_buf, "\n")] = '\0';
+        char chosen_clearing[16];
+        fgets(chosen_clearing, sizeof(chosen_clearing), stdin);
+        chosen_clearing[strcspn(chosen_clearing, "\n")] = '\0';
 
-        Clearing *chosen_clearing = get_clearing(keep_clearing, clearings);
-        if (chosen_clearing.is_corner != true) {
-            printf("Clearing %s is not a corner clearing! Please choose a corner.\n", keep_clearing);
+        keep_clearing = get_clearing(chosen_clearing, clearings);
+        if (keep_clearing->is_corner != true) {
+            printf("Clearing %s is not a corner clearing! Please choose a corner.\n", chosen_clearing);
             continue;
         }
 
-        Building the_keep = {};
+        keep_clearing->tokens[0] = KEEP;
+        is_placing_keep = false;
     }
-}*/
+
+    Warrior marquise_warrior = {MARQUISE};
+    if (keep_clearing->opposite_corner == NULL) {
+        printf("Keep clearing opposite corner null!\n");
+    }
+
+    for (int i = 0; i < 12; i++) {
+        Clearing *curr_clearing = clearings[i];
+
+        if (strcmp(curr_clearing->name, keep_clearing->opposite_corner->name) != 0) {
+            curr_clearing->warriors[0] = marquise_warrior;
+        }
+    }
+}
 
 
 int main(void) {
@@ -241,6 +322,12 @@ int main(void) {
     Clearing *fox_4 = create_clearing("F4", FOX, 2, false, false);
     Clearing *mouse_4 = create_clearing("M4", MOUSE, 2, false, false);
     Clearing *rabbit_4 = create_clearing("R4", RABBIT, 1, false, true);
+
+    // Set opposite corners.
+    fox_1->opposite_corner = rabbit_4;
+    mouse_1->opposite_corner = rabbit_3;
+    rabbit_3->opposite_corner = mouse_1;
+    rabbit_4->opposite_corner = fox_1;
 
     // Create each forest.
     Forest *forest_1 = create_forest("For1");
@@ -350,6 +437,7 @@ int main(void) {
     Forest *forests[7] = {forest_1, forest_2, forest_3, forest_4, forest_5,
                           forest_6, forest_7};
 
+    setup_marquise(clearings);
 
     // Game loop:
     bool is_playing = true;
